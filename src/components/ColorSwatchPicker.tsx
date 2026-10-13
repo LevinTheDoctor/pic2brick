@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from 'react'
 import type { Color } from '../api/client'
-import { isLight } from '../lib/colors'
+import { isLight, sortByHue } from '../lib/colors'
 
 interface Props {
   label: string
@@ -12,23 +12,12 @@ interface Props {
   onChange: (id: number | null) => void
 }
 
-const hue = (hex: string) => {
-  const n = parseInt(hex.slice(1), 16)
-  const [r, g, b] = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]
-  const max = Math.max(r, g, b)
-  const min = Math.min(r, g, b)
-  if (max - min < 0.12) return -1 + max // Grautöne zuerst, von dunkel nach hell
-  const d = max - min
-  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
-  return (h * 60 + 360) % 360
-}
-
 /** Farbwahl aus dem Katalog (Uni-Farben), aufklappbar. */
 export function ColorSwatchPicker({ label, colors, value, changed, defaultLabel, onChange }: Props) {
   const [open, setOpen] = useState(false)
   const id = useId()
   const solid = useMemo(
-    () => colors.filter((c) => c.kategorie === 'solid').sort((a, b) => hue(a.hex) - hue(b.hex)),
+    () => sortByHue(colors.filter((c) => c.kategorie === 'solid')),
     [colors],
   )
   const current = colors.find((c) => c.id === value)

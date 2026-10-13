@@ -89,6 +89,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bild/hintergrund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hintergrund erkennen
+         * @description Erkennt den Hintergrund (häufigste Randfarbe, zusammenhängend vom Rand aus) des gedrehten und zugeschnittenen Bilds. Mit `hintergrund_toleranz` steuern, wie ähnlich ein Pixel sein muss. Danach z. B. `hintergrund=entfernen` und `hintergrundfarbe=lego_farbe.id` an `POST /mosaike` schicken.
+         */
+        post: operations["detect_background"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bild/vorschau": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bearbeitetes Bild als PNG
+         * @description Das Bild nach Drehen, Ausschnitt, Farbfilter, Helligkeit/Kontrast/Sättigung und Hintergrund, so wie es ins Dithering geht (noch nicht auf Noppen verkleinert).
+         */
+        post: operations["preview_image"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/mosaike": {
         parameters: {
             query?: never;
@@ -140,6 +180,141 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/mosaike/{mosaic_id}/raster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Farbraster für einen Editor
+         * @description Farbe jeder Noppe (Inhalt von `raster.json`). Zeilen und Spalten zählen ab 1 inklusive Rahmen, so wie `POST /mosaike/{id}/bearbeiten` sie erwartet.
+         */
+        get: operations["get_raster"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mosaike/{mosaic_id}/bearbeiten": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Noppen und Flächen umfärben
+         * @description Rechnet das Mosaik mit den Änderungen neu: Teile, Teilelisten und Anleitung passen danach zum Bild. Es entsteht ein neues Mosaik mit neuer ID (`basis` zeigt auf dieses); das alte bleibt. Änderungen sammeln sich, das neue Mosaik lässt sich also weiter bearbeiten. Erlaubt ist jede Farbe, die es für Teilarten und Stil als 1×1-Teil gibt; der Rahmen bleibt fest.
+         */
+        post: operations["edit_mosaic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/paletten": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Eigene Farbpaletten */
+        get: operations["list_palettes"];
+        put?: never;
+        /** Palette anlegen */
+        post: operations["create_palette"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/paletten/{palette_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Eine Palette */
+        get: operations["get_palette"];
+        /** Palette ersetzen */
+        put: operations["update_palette"];
+        post?: never;
+        /** Palette löschen */
+        delete: operations["delete_palette"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Presets (Favoriten zuerst) */
+        get: operations["list_presets"];
+        put?: never;
+        /**
+         * Preset anlegen
+         * @description Die Einstellungen werden wie bei `POST /mosaike` geprüft.
+         */
+        post: operations["create_preset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/presets/{preset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ein Preset */
+        get: operations["get_preset"];
+        /** Preset ersetzen */
+        put: operations["update_preset"];
+        post?: never;
+        /** Preset löschen */
+        delete: operations["delete_preset"];
+        options?: never;
+        head?: never;
+        /** Favorit oder Bewertung setzen */
+        patch: operations["mark_preset"];
+        trace?: never;
+    };
+    "/mosaike/{mosaic_id}/preset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Einstellungen eines Mosaiks als Preset speichern */
+        post: operations["preset_from_mosaic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/mosaike/{mosaic_id}/preise": {
         parameters: {
             query?: never;
@@ -185,6 +360,57 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AreaEditModel */
+        AreaEditModel: {
+            /**
+             * Zeile
+             * @description Zeile ab 1, inklusive Rahmen (wie in der Anleitung)
+             */
+            zeile: number;
+            /**
+             * Spalte
+             * @description Spalte ab 1, inklusive Rahmen
+             */
+            spalte: number;
+            /**
+             * Farbe Id
+             * @description Neue Farbe (Rebrickable-ID)
+             */
+            farbe_id: number;
+            /**
+             * Breite
+             * @description Breite der Fläche in Noppen
+             */
+            breite: number;
+            /**
+             * Hoehe
+             * @description Höhe der Fläche in Noppen
+             */
+            hoehe: number;
+        };
+        /**
+         * BackgroundModel
+         * @description Erkannter Hintergrund (``POST /bild/hintergrund``).
+         */
+        BackgroundModel: {
+            /**
+             * Farbe Hex
+             * @description Mittlere Farbe des Hintergrunds am Bildrand (#RRGGBB)
+             */
+            farbe_hex: string;
+            /**
+             * Anteil
+             * @description Anteil des Hintergrunds an der Bildfläche (0 bis 1)
+             */
+            anteil: number;
+            /** @description Nächste LEGO-Farbe der Palette, z. B. als hintergrundfarbe */
+            lego_farbe: components["schemas"]["ColorModel"];
+            /**
+             * Maske Png
+             * @description Maske als PNG-Data-URL (weiß = Hintergrund), direkt als <img src> nutzbar
+             */
+            maske_png: string;
+        };
         /** Body_create_mosaic */
         Body_create_mosaic: {
             /**
@@ -192,6 +418,16 @@ export interface components {
              * @description Bilddatei (JPG, PNG, …)
              */
             bild: string;
+            /**
+             * Preset
+             * @description Gespeichertes Preset als Grundlage; angegebene Felder gehen vor
+             */
+            preset?: string | null;
+            /**
+             * Palette
+             * @description Eigene Palette (Name oder ID, siehe /paletten)
+             */
+            palette?: string | null;
             /**
              * Unterbau
              * @description Unterbau (Standard: art)
@@ -258,16 +494,6 @@ export interface components {
              */
             modus?: ("zuschneiden" | "einpassen") | null;
             /**
-             * Kontrast
-             * @description Kontrast, 1.0 = unverändert (Standard: 1.0)
-             */
-            kontrast?: number | null;
-            /**
-             * Saettigung
-             * @description Sättigung, 1.0 = unverändert (Standard: 1.0)
-             */
-            saettigung?: number | null;
-            /**
              * Teile
              * @description Teilarten des Bilds. Kommagetrennt aus: plate, tile, brick (Standard: plate,tile)
              */
@@ -288,6 +514,11 @@ export interface components {
              * @description Höchstens so viele Farben, 0 = alle (Standard: 0)
              */
             max_farben?: number | null;
+            /**
+             * Farb Ids
+             * @description Nur diese Farben (Rebrickable-IDs, z. B. 0,15,71)
+             */
+            farb_ids?: string | null;
             /**
              * Stil
              * @description Stil der Bildteile (Standard: formen)
@@ -330,7 +561,7 @@ export interface components {
             zerlegung?: ("single_stud" | "greedy") | null;
             /**
              * Ausgaben
-             * @description Erzeugte Dateien (ergebnis.json kommt immer dazu). Kommagetrennt aus: preview_png, ldraw, parts_list_csv, official_parts_lists, instructions_png, result_json (Standard: preview_png,ldraw,parts_list_csv,official_parts_lists,instructions_png,result_json)
+             * @description Erzeugte Dateien (ergebnis.json und raster.json kommen immer dazu). Kommagetrennt aus: preview_png, ldraw, parts_list_csv, official_parts_lists, instructions_png, raster_json, result_json (Standard: preview_png,ldraw,parts_list_csv,official_parts_lists,instructions_png,raster_json,result_json)
              */
             ausgaben?: string | null;
             /**
@@ -338,6 +569,208 @@ export interface components {
              * @description Name auf dem Titelblatt (Standard: Dateiname)
              */
             titel?: string | null;
+            /**
+             * Kontrast
+             * @description Kontrast, 1.0 = unverändert (Standard: 1.0)
+             */
+            kontrast?: number | null;
+            /**
+             * Saettigung
+             * @description Sättigung, 1.0 = unverändert (Standard: 1.0)
+             */
+            saettigung?: number | null;
+            /**
+             * Helligkeit
+             * @description Helligkeit, 1.0 = unverändert (Standard: 1.0)
+             */
+            helligkeit?: number | null;
+            /**
+             * Farbfilter
+             * @description Farbfilter vor dem Dithering (Standard: ohne)
+             */
+            farbfilter?: ("ohne" | "graustufen" | "sepia" | "warm" | "kalt" | "invertieren" | "poster" | "vintage") | null;
+            /**
+             * Filter Staerke
+             * @description Stärke des Filters, 0 bis 1 (Standard: 1.0)
+             */
+            filter_staerke?: number | null;
+            /**
+             * Drehen
+             * @description Drehen im Uhrzeigersinn in Grad (Standard: 0)
+             */
+            drehen?: (0 | 90 | 180 | 270) | null;
+            /**
+             * Spiegeln
+             * @description Waagerecht spiegeln (Standard: nein)
+             */
+            spiegeln?: boolean | null;
+            /**
+             * Ausschnitt
+             * @description Ausschnitt x,y,Breite,Höhe in Prozent, z. B. 10,0,80,100
+             */
+            ausschnitt?: string | null;
+            /**
+             * Hintergrund
+             * @description Was mit dem Hintergrund passiert (Standard: behalten)
+             */
+            hintergrund?: ("behalten" | "entfernen" | "aufhellen" | "abdunkeln" | "entsaettigen" | "weichzeichnen") | null;
+            /**
+             * Hintergrundfarbe
+             * @description Neue Farbe bei „entfernen“ (Rebrickable-ID)
+             */
+            hintergrundfarbe?: number | null;
+            /**
+             * Hintergrund Toleranz
+             * @description So ähnlich (ΔE) muss ein Pixel der Randfarbe sein (Standard: 12.0)
+             */
+            hintergrund_toleranz?: number | null;
+            /**
+             * Hintergrund Staerke
+             * @description Stärke für aufhellen, abdunkeln, …, 0 bis 1 (Standard: 0.5)
+             */
+            hintergrund_staerke?: number | null;
+        };
+        /** Body_detect_background */
+        Body_detect_background: {
+            /**
+             * Bild
+             * @description Bilddatei (JPG, PNG, …)
+             */
+            bild: string;
+            /**
+             * Kontrast
+             * @description Kontrast, 1.0 = unverändert (Standard: 1.0)
+             */
+            kontrast?: number | null;
+            /**
+             * Saettigung
+             * @description Sättigung, 1.0 = unverändert (Standard: 1.0)
+             */
+            saettigung?: number | null;
+            /**
+             * Helligkeit
+             * @description Helligkeit, 1.0 = unverändert (Standard: 1.0)
+             */
+            helligkeit?: number | null;
+            /**
+             * Farbfilter
+             * @description Farbfilter vor dem Dithering (Standard: ohne)
+             */
+            farbfilter?: ("ohne" | "graustufen" | "sepia" | "warm" | "kalt" | "invertieren" | "poster" | "vintage") | null;
+            /**
+             * Filter Staerke
+             * @description Stärke des Filters, 0 bis 1 (Standard: 1.0)
+             */
+            filter_staerke?: number | null;
+            /**
+             * Drehen
+             * @description Drehen im Uhrzeigersinn in Grad (Standard: 0)
+             */
+            drehen?: (0 | 90 | 180 | 270) | null;
+            /**
+             * Spiegeln
+             * @description Waagerecht spiegeln (Standard: nein)
+             */
+            spiegeln?: boolean | null;
+            /**
+             * Ausschnitt
+             * @description Ausschnitt x,y,Breite,Höhe in Prozent, z. B. 10,0,80,100
+             */
+            ausschnitt?: string | null;
+            /**
+             * Hintergrund
+             * @description Was mit dem Hintergrund passiert (Standard: behalten)
+             */
+            hintergrund?: ("behalten" | "entfernen" | "aufhellen" | "abdunkeln" | "entsaettigen" | "weichzeichnen") | null;
+            /**
+             * Hintergrundfarbe
+             * @description Neue Farbe bei „entfernen“ (Rebrickable-ID)
+             */
+            hintergrundfarbe?: number | null;
+            /**
+             * Hintergrund Toleranz
+             * @description So ähnlich (ΔE) muss ein Pixel der Randfarbe sein (Standard: 12.0)
+             */
+            hintergrund_toleranz?: number | null;
+            /**
+             * Hintergrund Staerke
+             * @description Stärke für aufhellen, abdunkeln, …, 0 bis 1 (Standard: 0.5)
+             */
+            hintergrund_staerke?: number | null;
+        };
+        /** Body_preview_image */
+        Body_preview_image: {
+            /**
+             * Bild
+             * @description Bilddatei (JPG, PNG, …)
+             */
+            bild: string;
+            /**
+             * Groesse
+             * @description Längere Seite in Pixeln (Standard: 800)
+             * @default 800
+             */
+            groesse: number;
+            /**
+             * Kontrast
+             * @description Kontrast, 1.0 = unverändert (Standard: 1.0)
+             */
+            kontrast?: number | null;
+            /**
+             * Saettigung
+             * @description Sättigung, 1.0 = unverändert (Standard: 1.0)
+             */
+            saettigung?: number | null;
+            /**
+             * Helligkeit
+             * @description Helligkeit, 1.0 = unverändert (Standard: 1.0)
+             */
+            helligkeit?: number | null;
+            /**
+             * Farbfilter
+             * @description Farbfilter vor dem Dithering (Standard: ohne)
+             */
+            farbfilter?: ("ohne" | "graustufen" | "sepia" | "warm" | "kalt" | "invertieren" | "poster" | "vintage") | null;
+            /**
+             * Filter Staerke
+             * @description Stärke des Filters, 0 bis 1 (Standard: 1.0)
+             */
+            filter_staerke?: number | null;
+            /**
+             * Drehen
+             * @description Drehen im Uhrzeigersinn in Grad (Standard: 0)
+             */
+            drehen?: (0 | 90 | 180 | 270) | null;
+            /**
+             * Spiegeln
+             * @description Waagerecht spiegeln (Standard: nein)
+             */
+            spiegeln?: boolean | null;
+            /**
+             * Ausschnitt
+             * @description Ausschnitt x,y,Breite,Höhe in Prozent, z. B. 10,0,80,100
+             */
+            ausschnitt?: string | null;
+            /**
+             * Hintergrund
+             * @description Was mit dem Hintergrund passiert (Standard: behalten)
+             */
+            hintergrund?: ("behalten" | "entfernen" | "aufhellen" | "abdunkeln" | "entsaettigen" | "weichzeichnen") | null;
+            /**
+             * Hintergrundfarbe
+             * @description Neue Farbe bei „entfernen“ (Rebrickable-ID)
+             */
+            hintergrundfarbe?: number | null;
+            /**
+             * Hintergrund Toleranz
+             * @description So ähnlich (ΔE) muss ein Pixel der Randfarbe sein (Standard: 12.0)
+             */
+            hintergrund_toleranz?: number | null;
+            /**
+             * Hintergrund Staerke
+             * @description Stärke für aufhellen, abdunkeln, …, 0 bis 1 (Standard: 0.5)
+             */
+            hintergrund_staerke?: number | null;
         };
         /**
          * BrickLinkExportModel
@@ -425,6 +858,30 @@ export interface components {
              * @description Offizieller LEGO-Farbname, falls bekannt
              */
             lego_name: string | null;
+        };
+        /**
+         * EditRequestModel
+         * @description Änderungen für ``POST /mosaike/{id}/bearbeiten``; angewendet in dieser Reihenfolge.
+         */
+        EditRequestModel: {
+            /**
+             * Noppen
+             * @description Einzelne Noppen umfärben
+             * @default []
+             */
+            noppen: components["schemas"]["StudEditModel"][];
+            /**
+             * Flaechen
+             * @description Rechtecke ab (zeile, spalte) umfärben
+             * @default []
+             */
+            flaechen: components["schemas"]["AreaEditModel"][];
+            /**
+             * Fuellen
+             * @description Farbeimer: die zusammenhängende gleichfarbige Fläche um (zeile, spalte)
+             * @default []
+             */
+            fuellen: components["schemas"]["StudEditModel"][];
         };
         /** ErrorModel */
         ErrorModel: {
@@ -516,6 +973,11 @@ export interface components {
             dateien: {
                 [key: string]: string;
             };
+            /**
+             * Basis
+             * @description Bei bearbeiteten Mosaiken: ID des Mosaiks davor, sonst null
+             */
+            basis?: string | null;
         };
         OptionValue: string | number | boolean | null;
         /** OptionsModel */
@@ -562,6 +1024,55 @@ export interface components {
             noppen: number;
         };
         /**
+         * PaletteInputModel
+         * @description Eigene Palette anlegen oder ersetzen.
+         */
+        PaletteInputModel: {
+            /**
+             * Name
+             * @description Name
+             */
+            name: string;
+            /**
+             * Beschreibung
+             * @default
+             */
+            beschreibung: string;
+            /**
+             * Farb Ids
+             * @description Rebrickable-Farb-IDs (siehe /farben)
+             */
+            farb_ids: number[];
+        };
+        /** PaletteModel */
+        PaletteModel: {
+            /**
+             * Id
+             * @description Kennung (aus dem Name), für URLs und das Feld palette
+             */
+            id: string;
+            /**
+             * Name
+             * @description Name
+             */
+            name: string;
+            /**
+             * Beschreibung
+             * @description Freitext
+             */
+            beschreibung: string;
+            /**
+             * Farb Ids
+             * @description Rebrickable-Farb-IDs
+             */
+            farb_ids: number[];
+            /**
+             * Farben
+             * @description Die Farben mit Name und Hex-Wert
+             */
+            farben: components["schemas"]["RasterColorModel"][];
+        };
+        /**
          * PartsListItemModel
          * @description Eine Position der Teileliste (``teileliste`` in ``ergebnis.json``).
          */
@@ -602,6 +1113,141 @@ export interface components {
              */
             anzahl: number;
         };
+        /**
+         * PresetFromMosaicModel
+         * @description Einstellungen eines fertigen Mosaiks als Preset speichern.
+         */
+        PresetFromMosaicModel: {
+            /**
+             * Name
+             * @description Name
+             */
+            name: string;
+            /**
+             * Beschreibung
+             * @default
+             */
+            beschreibung: string;
+            /**
+             * Favorit
+             * @description Als Favorit markieren
+             * @default false
+             */
+            favorit: boolean;
+            /**
+             * Bewertung
+             * @description 0–5 Sterne
+             * @default 0
+             */
+            bewertung: number;
+        };
+        /**
+         * PresetInputModel
+         * @description Preset anlegen oder ersetzen.
+         */
+        PresetInputModel: {
+            /**
+             * Name
+             * @description Name
+             */
+            name: string;
+            /**
+             * Beschreibung
+             * @default
+             */
+            beschreibung: string;
+            /**
+             * Einstellungen
+             * @description Formularfelder von POST /mosaike (ohne bild und titel), dazu palette
+             */
+            einstellungen: {
+                [key: string]: string | number | boolean;
+            };
+            /**
+             * Favorit
+             * @description Als Favorit markieren
+             * @default false
+             */
+            favorit: boolean;
+            /**
+             * Bewertung
+             * @description 0–5 Sterne
+             * @default 0
+             */
+            bewertung: number;
+        };
+        /**
+         * PresetMarkModel
+         * @description Nur Favorit und/oder Bewertung ändern (fehlende Felder bleiben).
+         */
+        PresetMarkModel: {
+            /**
+             * Favorit
+             * @description Favorit an/aus
+             */
+            favorit?: boolean | null;
+            /**
+             * Bewertung
+             * @description 0–5 Sterne
+             */
+            bewertung?: number | null;
+        };
+        /** PresetModel */
+        PresetModel: {
+            /**
+             * Id
+             * @description Kennung (aus dem Name), für URLs und das Feld preset
+             */
+            id: string;
+            /**
+             * Name
+             * @description Name
+             */
+            name: string;
+            /**
+             * Beschreibung
+             * @description Freitext
+             */
+            beschreibung: string;
+            /**
+             * Einstellungen
+             * @description Formularfelder von POST /mosaike
+             */
+            einstellungen: {
+                [key: string]: string | number | boolean;
+            };
+            /**
+             * Favorit
+             * @description Favorit (steht in Listen oben)
+             */
+            favorit: boolean;
+            /**
+             * Bewertung
+             * @description 0–5 Sterne (0 = unbewertet)
+             */
+            bewertung: number;
+            /**
+             * Nutzungen
+             * @description So oft für ein Mosaik benutzt
+             */
+            nutzungen: number;
+            /**
+             * Erstellt
+             * @description Angelegt (ISO 8601, UTC)
+             */
+            erstellt: string;
+            /**
+             * Geaendert
+             * @description Zuletzt geändert (ISO 8601, UTC)
+             */
+            geaendert: string;
+        };
+        /**
+         * PresetOrder
+         * @description Sortierung der Preset-Liste (Favoriten stehen immer zuerst).
+         * @enum {string}
+         */
+        PresetOrder: "bewertung" | "nutzung" | "name" | "neu";
         /**
          * PriceEstimateModel
          * @description Inhalt von ``preise.json``.
@@ -762,6 +1408,55 @@ export interface components {
              */
             stand: string | null;
         };
+        /** RasterColorModel */
+        RasterColorModel: {
+            /**
+             * Id
+             * @description Rebrickable-Farb-ID
+             */
+            id: number;
+            /**
+             * Name
+             * @description Farbname (Rebrickable)
+             */
+            name: string;
+            /**
+             * Hex
+             * @description Farbwert als #RRGGBB
+             */
+            hex: string;
+        };
+        /**
+         * RasterModel
+         * @description Inhalt von ``raster.json``: Farbe jeder Noppe (für einen Editor).
+         */
+        RasterModel: {
+            /**
+             * Breite
+             * @description Breite in Noppen, mit Rahmen
+             */
+            breite: number;
+            /**
+             * Hoehe
+             * @description Höhe in Noppen, mit Rahmen
+             */
+            hoehe: number;
+            /**
+             * Rahmen
+             * @description Rahmenbreite; diese äußeren Ringe sind nicht bearbeitbar
+             */
+            rahmen: number;
+            /**
+             * Farben
+             * @description Alle Farben im Raster
+             */
+            farben: components["schemas"]["RasterColorModel"][];
+            /**
+             * Zeilen
+             * @description Zeilen von oben nach unten, je Spalte die Farb-ID (zeilen[0][0] = oben links)
+             */
+            zeilen: number[][];
+        };
         /**
          * ResultModel
          * @description Inhalt von ``ergebnis.json``.
@@ -809,6 +1504,11 @@ export interface components {
             teileliste: components["schemas"]["PartsListItemModel"][];
             /** @description Geschätzter Preis nach POST /mosaike/{id}/preise, sonst null */
             preise?: components["schemas"]["PriceSummaryModel"] | null;
+            /**
+             * Basis
+             * @description Bei bearbeiteten Mosaiken: ID des Mosaiks davor, sonst null
+             */
+            basis?: string | null;
             /**
              * Dateien
              * @description Dateinamen; herunterladen über /mosaike/{id}/dateien/{name}
@@ -922,6 +1622,24 @@ export interface components {
             dauer_sekunden: {
                 [key: string]: number;
             };
+        };
+        /** StudEditModel */
+        StudEditModel: {
+            /**
+             * Zeile
+             * @description Zeile ab 1, inklusive Rahmen (wie in der Anleitung)
+             */
+            zeile: number;
+            /**
+             * Spalte
+             * @description Spalte ab 1, inklusive Rahmen
+             */
+            spalte: number;
+            /**
+             * Farbe Id
+             * @description Neue Farbe (Rebrickable-ID)
+             */
+            farbe_id: number;
         };
         /** UpdateFileModel */
         UpdateFileModel: {
@@ -1093,6 +1811,108 @@ export interface operations {
             };
         };
     };
+    detect_background: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_detect_background"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackgroundModel"];
+                };
+            };
+            /** @description Kein lesbares Bild */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Datei zu groß */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Ungültige Angaben */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    preview_image: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_preview_image"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                };
+            };
+            /** @description Kein lesbares Bild */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Datei zu groß */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Ungültige Angaben */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     create_mosaic: {
         parameters: {
             query?: never;
@@ -1117,6 +1937,15 @@ export interface operations {
             };
             /** @description Kein lesbares Bild */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Nicht gefunden */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1205,7 +2034,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Die Datei (PNG, PDF, LDraw, CSV, XML oder JSON) */
+            /** @description Die Datei (PNG, PDF, LDraw, CSV, XML, JSON oder Originalbild) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1228,6 +2057,560 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_raster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mosaic_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RasterModel"];
+                };
+            };
+            /** @description Nicht gefunden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_mosaic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mosaic_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditRequestModel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MosaicCreatedModel"];
+                };
+            };
+            /** @description Nicht gefunden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Ungültige Angaben */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Verarbeitungsfehler */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    list_palettes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaletteModel"][];
+                };
+            };
+        };
+    };
+    create_palette: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaletteInputModel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaletteModel"];
+                };
+            };
+            /** @description Ungültige Angaben */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    get_palette: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                palette_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaletteModel"];
+                };
+            };
+            /** @description Nicht gefunden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_palette: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                palette_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaletteInputModel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaletteModel"];
+                };
+            };
+            /** @description Nicht gefunden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Ungültige Angaben */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    delete_palette: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                palette_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Nicht gefunden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_presets: {
+        parameters: {
+            query?: {
+                /** @description Nach Favoriten: bewertung, nutzung, name oder neu */
+                sortierung?: components["schemas"]["PresetOrder"];
+                /** @description Nur Favoriten */
+                favoriten?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetModel"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_preset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PresetInputModel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetModel"];
+                };
+            };
+            /** @description Nicht gefunden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Ungültige Angaben */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    get_preset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetModel"];
+                };
+            };
+            /** @description Nicht gefunden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_preset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PresetInputModel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetModel"];
+                };
+            };
+            /** @description Nicht gefunden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Ungültige Angaben */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    delete_preset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Nicht gefunden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_preset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PresetMarkModel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetModel"];
+                };
+            };
+            /** @description Nicht gefunden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Ungültige Angaben */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    preset_from_mosaic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mosaic_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PresetFromMosaicModel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetModel"];
+                };
+            };
+            /** @description Nicht gefunden */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Ungültige Angaben */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
                 };
             };
         };

@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
-import type { Color, FieldOption, Options } from '../api/client'
+import type { Background, Color, FieldOption, Options, Palette, Preset } from '../api/client'
 import { asList, computeSize, conflicts, effective, type Value, type Values } from '../lib/form'
+import { GEOMETRY_FIELDS, flip, parseCrop, photoFields, presetSettings, rotate } from '../lib/photo'
 import {
   BASE_STYLES,
   FIELD_HINTS,
@@ -10,8 +11,12 @@ import {
   number,
   valueLabel,
 } from '../lib/labels'
+import { BackgroundHint } from './BackgroundHint'
 import { ColorSwatchPicker } from './ColorSwatchPicker'
+import { FilterPicker } from './FilterPicker'
 import { FormatPicker } from './FormatPicker'
+import { PaletteSection } from './PaletteSection'
+import { PresetSection } from './PresetSection'
 
 interface Props {
   options: Options
@@ -20,25 +25,46 @@ interface Props {
   onChange: (field: string, value: Value | undefined) => void
   onReplace: (values: Values) => void
   aspect: number
-  fileName: string
+  file: File
   building: boolean
   onBuild: () => void
+  palettes: Palette[]
+  presets: Preset[]
+  onRefreshPalettes: () => void
+  onRefreshPresets: () => void
+  background: Background | null
+  detecting: boolean
+  /** Ausschnitt direkt auf dem Foto wählen */
+  onPickCrop: () => void
 }
 
 const GROUPS: { title: string; fields: string[]; open?: boolean }[] = [
   { title: 'Größe', fields: ['plattengroesse', 'modus'], open: true },
+  {
+    title: 'Foto',
+    fields: ['farbfilter', 'filter_staerke', 'helligkeit', 'kontrast', 'saettigung', 'hintergrund', 'hintergrundfarbe', 'hintergrund_toleranz', 'hintergrund_staerke'],
+    open: true,
+  },
   { title: 'Stil', fields: ['stil', 'teile', 'relief', 'relief_hoehe'], open: true },
-  { title: 'Farben', fields: ['kontrast', 'saettigung', 'farbkategorien', 'exotische_farben', 'max_farben', 'dithering', 'staerke'] },
+  { title: 'Farben', fields: ['palette', 'farbkategorien', 'exotische_farben', 'max_farben', 'dithering', 'staerke'] },
   { title: 'Rahmen', fields: ['rahmen', 'rahmenfarbe', 'eckenfarbe', 'rahmen_teile', 'rahmen_erhoehung'] },
   { title: 'Unterbau', fields: ['unterbau', 'unterbaufarbe'] },
   { title: 'Erweitert', fields: ['farbabstand', 'aufraeumen', 'zerlegung', 'ausgaben'] },
 ]
 /** Felder mit eigener Darstellung */
-const SPECIAL = new Set(['format', 'platten', 'breite', 'hoehe', 'titel'])
-const COLOR_FIELDS = new Set(['rahmenfarbe', 'eckenfarbe', 'unterbaufarbe'])
+const SPECIAL = new Set(['format', 'platten', 'breite', 'hoehe', 'titel', 'preset', 'farb_ids', ...GEOMETRY_FIELDS])
+const COLOR_FIELDS = new Set(['rahmenfarbe', 'eckenfarbe', 'unterbaufarbe', 'hintergrundfarbe'])
+const COLOR_DEFAULTS: Record<string, string> = {
+  eckenfarbe: 'Wie der Rahmen',
+  hintergrundfarbe: 'Weiß',
+}
 const SLIDERS: Record<string, [number, number, number]> = {
   kontrast: [0, 2, 0.05],
   saettigung: [0, 2, 0.05],
+  helligkeit: [0, 2, 0.05],
+  filter_staerke: [0, 1, 0.05],
+  hintergrund_toleranz: [0, 100, 1],
+  hintergrund_staerke: [0, 1, 0.05],
   staerke: [0, 1, 0.05],
   rahmen: [0, 4, 1],
   rahmen_erhoehung: [0, 3, 1],
@@ -46,6 +72,7 @@ const SLIDERS: Record<string, [number, number, number]> = {
   max_farben: [0, 60, 1],
 }
 const BOOLEAN_FIELDS = new Set(['exotische_farben', 'aufraeumen'])
+const SOFT_BACKGROUND = ['aufhellen', 'abdunkeln', 'entsaettigen', 'weichzeichnen']
 
 function StyleIcon({ style }: { style: string }) {
   const cells = [0, 1, 2]
@@ -67,7 +94,24 @@ function StyleIcon({ style }: { style: string }) {
   )
 }
 
-export function SettingsSheet({ options, catalog, values, onChange, onReplace, aspect, fileName, building, onBuild }: Props) {
+export function SettingsSheet({
+  options,
+  catalog,
+  values,
+  onChange,
+  onReplace,
+  aspect,
+  file,
+  building,
+  onBuild,
+  palettes,
+  presets,
+  onRefreshPalettes,
+  onRefreshPresets,
+  background,
+  detecting,
+  onPickCrop,
+}: Props) {
   const get = (field: string) => effective(options, values, field)
   const size = computeSize(options, values, aspect)
   const custom = 'breite' in values || 'hoehe' in values
@@ -117,7 +161,12 @@ export function SettingsSheet({ options, catalog, values, onChange, onReplace, a
     if (field === 'staerke') return get('dithering') !== 'nearest'
     if (field === 'eckenfarbe' || field === 'rahmen_teile' || field === 'rahmen_erhoehung' || field === 'rahmenfarbe')
       return Number(get('rahmen') ?? 1) > 0
-    if (field === 'farbkategorien') return !get('exotische_farben')
+    if (field === 'farbkategorien') return !get('exotische_farben') && !values.palette
+    if (field === 'exotische_farben') return !values.palette
+    if (field === 'filter_staerke') return get('farbfilter') !== 'ohne'
+    if (field === 'hintergrundfarbe') return get('hintergrund') === 'entfernen'
+    if (field === 'hintergrund_staerke') return SOFT_BACKGROUND.includes(String(get('hintergrund')))
+    if (field === 'hintergrund_toleranz') return get('hintergrund') !== 'behalten'
     return true
   }
 
@@ -151,9 +200,35 @@ export function SettingsSheet({ options, catalog, values, onChange, onReplace, a
           colors={catalog ?? []}
           value={typeof value === 'number' ? value : null}
           changed={changed}
-          defaultLabel={field === 'eckenfarbe' ? 'Wie der Rahmen' : 'Passend zum Unterbau'}
+          defaultLabel={COLOR_DEFAULTS[field] ?? 'Passend zum Unterbau'}
           onChange={(id) => onChange(field, id ?? undefined)}
         />
+      )
+
+    if (field === 'palette')
+      return (
+        <PaletteSection
+          key={field}
+          palettes={palettes}
+          catalog={catalog ?? []}
+          value={typeof value === 'string' && value ? value : null}
+          onChange={(id) => onChange(field, id)}
+          onRefresh={onRefreshPalettes}
+        />
+      )
+
+    if (field === 'farbfilter')
+      return (
+        <fieldset key={field} className="field">
+          <legend className="field__label">{head}</legend>
+          <FilterPicker
+            file={file}
+            geometry={photoFields(Object.fromEntries(GEOMETRY_FIELDS.filter((f) => f in values).map((f) => [f, values[f]])))}
+            filters={option.werte.map(String)}
+            value={String(value ?? 'ohne')}
+            onChange={(v) => onChange(field, v === option.standard ? undefined : v)}
+          />
+        </fieldset>
       )
 
     if (option.mehrfach) {
@@ -324,6 +399,56 @@ export function SettingsSheet({ options, catalog, values, onChange, onReplace, a
     )
   }
 
+  /** Drehen, Spiegeln und Ausschnitt: die Geometrie des Fotos */
+  const renderGeometry = () => {
+    const crop = parseCrop(values.ausschnitt)
+    const changed = GEOMETRY_FIELDS.some((f) => f in values)
+    const angle = Number(values.drehen ?? 0)
+    return (
+      <div key="geometry" className="field">
+        <span className="field__label">
+          Drehen und Ausschnitt
+          {changed && <span className="changed-dot" title="Geändert" />}
+          {changed && (
+            <button
+              type="button"
+              className="link-button field__reset"
+              onClick={() => onReplace(Object.fromEntries(Object.entries(values).filter(([k]) => !GEOMETRY_FIELDS.includes(k))))}
+            >
+              Zurücksetzen
+            </button>
+          )}
+        </span>
+        <div className="geometry">
+          <button type="button" className="icon-button" onClick={() => onReplace(rotate(values, -1))} aria-label="Nach links drehen" title="Nach links drehen">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 9.5a6 6 0 1 1 1.8 4.3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /><path d="M2.6 6.2 4.4 10l3.8-1.7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+          <button type="button" className="icon-button" onClick={() => onReplace(rotate(values, 1))} aria-label="Nach rechts drehen" title="Nach rechts drehen">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 9.5a6 6 0 1 0-1.8 4.3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /><path d="M17.4 6.2 15.6 10l-3.8-1.7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+          <button type="button" className="icon-button" onClick={() => onReplace(flip(values))} aria-pressed={Boolean(values.spiegeln)} aria-label="Spiegeln" title="Spiegeln">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5v15" stroke="currentColor" strokeWidth="1.6" strokeDasharray="2 2" /><path d="M7.5 5 3 15h4.5zM12.5 5 17 15h-4.5z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>
+          </button>
+          <span className="geometry__state">
+            {[angle ? `${angle}°` : null, values.spiegeln ? 'gespiegelt' : null, crop ? `Ausschnitt ${number(crop.w)} × ${number(crop.h)} %` : 'ganzes Bild']
+              .filter(Boolean)
+              .join(', ')}
+          </span>
+          <button type="button" className="chip" onClick={onPickCrop}>
+            Ausschnitt wählen
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const applyPreset = (preset: Preset) => {
+    const next: Values = { ...preset.einstellungen }
+    for (const field of ['titel', ...GEOMETRY_FIELDS]) if (field in values) next[field] = values[field]
+    next.preset = preset.id
+    onReplace(next)
+  }
+
   const changedCount = Object.keys(values).length
 
   return (
@@ -338,17 +463,28 @@ export function SettingsSheet({ options, catalog, values, onChange, onReplace, a
         <span className="field__label">Titel auf dem Titelblatt</span>
         <input
           type="text"
-          placeholder={fileName.replace(/\.[^.]+$/, '')}
+          placeholder={file.name.replace(/\.[^.]+$/, '')}
           value={String(values.titel ?? '')}
           onChange={(e) => onChange('titel', e.target.value || undefined)}
         />
       </label>
 
+      <PresetSection
+        presets={presets}
+        active={typeof values.preset === 'string' ? values.preset : null}
+        settings={presetSettings(values)}
+        onApply={applyPreset}
+        onDeleted={(id) => values.preset === id && onChange('preset', undefined)}
+        onRefresh={onRefreshPresets}
+      />
+
       {groups.map((group) => {
         const fields = group.fields.filter(visible)
         const isSize = group.title === 'Größe'
-        if (fields.length === 0 && !isSize) return null
-        const changedHere = fields.filter((f) => f in values).length
+        if (fields.length === 0 && !isSize && group.title !== 'Foto') return null
+        const changedHere =
+          fields.filter((f) => f in values).length +
+          (group.title === 'Foto' ? GEOMETRY_FIELDS.filter((f) => f in values).length : 0)
         return (
           <details key={group.title} className="group" open={group.open}>
             <summary>
@@ -367,7 +503,21 @@ export function SettingsSheet({ options, catalog, values, onChange, onReplace, a
                   onCustom={setCustom}
                 />
               )}
-              {fields.map((f) => renderField(f, options.felder[f]))}
+              {group.title === 'Foto' && renderGeometry()}
+              {fields.map((f) =>
+                f === 'hintergrund'
+                  ? [
+                      <BackgroundHint
+                        key="bg-hint"
+                        background={background}
+                        detecting={detecting}
+                        mode={String(get('hintergrund') ?? 'behalten')}
+                        onRemove={(id) => onReplace({ ...values, hintergrund: 'entfernen', hintergrundfarbe: id })}
+                      />,
+                      renderField(f, options.felder[f]),
+                    ]
+                  : renderField(f, options.felder[f]),
+              )}
             </div>
           </details>
         )

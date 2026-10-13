@@ -3,7 +3,7 @@ import type { BuildStep } from '../lib/ldraw'
 import type { CameraPreset } from '../three/MosaicScene'
 import { Glass } from './Glass'
 
-export type View = '3d' | 'top' | 'guide'
+export type View = '3d' | 'top' | 'guide' | 'edit'
 
 interface Props {
   view: View
@@ -16,15 +16,17 @@ interface Props {
   onCamera: (preset: CameraPreset) => void
   hasModel: boolean
   hasGuide: boolean
+  hasRaster: boolean
 }
 
 const VIEWS: { id: View; label: string }[] = [
   { id: '3d', label: '3D' },
   { id: 'top', label: 'Draufsicht' },
   { id: 'guide', label: 'Anleitung' },
+  { id: 'edit', label: 'Bearbeiten' },
 ]
 
-export function Dock({ view, onView, steps, step, onStep, playing, onPlaying, onCamera, hasModel, hasGuide }: Props) {
+export function Dock({ view, onView, steps, step, onStep, playing, onPlaying, onCamera, hasModel, hasGuide, hasRaster }: Props) {
   const last = steps.length - 1
   const current = steps[step]
 
@@ -106,7 +108,7 @@ export function Dock({ view, onView, steps, step, onStep, playing, onPlaying, on
         <span />
       )}
       <div className="segmented" role="tablist" aria-label="Ansicht">
-        {VIEWS.filter((v) => (v.id === '3d' ? hasModel : v.id === 'guide' ? hasGuide : true)).map((v) => (
+        {VIEWS.filter((v) => ({ '3d': hasModel, guide: hasGuide, edit: hasRaster, top: true })[v.id]).map((v) => (
           <button
             key={v.id}
             type="button"

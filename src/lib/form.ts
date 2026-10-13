@@ -1,4 +1,4 @@
-import type { Color, Options } from '../api/client'
+import type { Color, Options, Palette } from '../api/client'
 import { FALLBACK_SOLID } from './colors'
 import { BASE_STYLES, SHAPE_STYLES } from './labels'
 
@@ -53,11 +53,20 @@ export function conflicts(options: Options | null, values: Values): string[] {
   if (SHAPE_STYLES.includes(style) && parts.includes('brick'))
     problems.push('Formteile gibt es nicht als Brick. Nimm unter „Teile im Bild“ die Bricks heraus oder wähle den Stil Quadrate.')
   if (parts.length === 0) problems.push('Wähle unter „Teile im Bild“ mindestens eine Teilart.')
+  if (values.palette && values.farb_ids)
+    problems.push('Entweder eine Palette oder eigene Farb-IDs, nicht beides. Setze eins davon zurück.')
   return problems
 }
 
-/** Farben für die Schnellvorschau, passend zu den gewählten Oberflächen. */
-export function previewPalette(options: Options | null, values: Values, catalog: Color[] | null): string[] {
+/** Farben für die Schnellvorschau: die gewählte Palette oder passend zu den gewählten Oberflächen. */
+export function previewPalette(
+  options: Options | null,
+  values: Values,
+  catalog: Color[] | null,
+  palettes: Palette[] = [],
+): string[] {
+  const palette = palettes.find((p) => p.id === values.palette)
+  if (palette?.farben.length) return palette.farben.map((c) => c.hex)
   if (!catalog?.length) return FALLBACK_SOLID
   const exotic = Boolean(effective(options, values, 'exotische_farben'))
   const categories = asList(effective(options, values, 'farbkategorien'))

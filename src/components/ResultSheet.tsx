@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { ApiError, createPalette, presetFromMosaic } from '../api/client'
 import { isLight } from '../lib/colors'
 import { number, studsToCm } from '../lib/labels'
 import type { LoadedMosaic } from '../lib/mosaic'
@@ -8,6 +9,74 @@ interface Props {
   mosaic: LoadedMosaic
   focus: number | null
   onFocus: (code: number | null) => void
+  /** Bei bearbeiteten Mosaiken: die Version davor öffnen */
+  onPrevious: (() => void) | null
+  onSaved: () => void
+}
+
+/** Einstellungen oder Farben dieses Mosaiks speichern. */
+function SaveAs({ mosaic, onSaved }: { mosaic: LoadedMosaic; onSaved: () => void }) {
+  const [kind, setKind] = useState<'preset' | 'palette' | null>(null)
+  const [name, setName] = useState('')
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const save = async () => {
+    if (!kind || !name.trim()) return
+    setBusy(true)
+    try {
+      if (kind === 'preset') await presetFromMosaic(mosaic.id, name.trim())
+      else
+        await createPalette({ name: name.trim(), beschreibung: `Aus „${mosaic.result.titel}“`, farb_ids: mosaic.result.palette.map((c) => c.id) })
+      setMessage({ ok: true, text: kind === 'preset' ? `Preset „${name.trim()}“ gespeichert.` : `Palette „${name.trim()}“ gespeichert.` })
+      setKind(null)
+      setName('')
+      onSaved()
+    } catch (e) {
+      setMessage({ ok: false, text: e instanceof ApiError ? e.message : 'Das hat nicht geklappt.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="result__section" aria-labelledby="save-title">
+      <h3 id="save-title">Wiederverwenden</h3>
+      <p className="section-note">Für das nächste Foto: dieselben Einstellungen oder nur diese Farben.</p>
+      {kind ? (
+        <div className="inline-save">
+          <input
+            type="text"
+            autoFocus
+            placeholder={kind === 'preset' ? 'Name des Presets' : 'Name der Palette'}
+            aria-label={kind === 'preset' ? 'Name des Presets' : 'Name der Palette'}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void save()
+              if (e.key === 'Escape') setKind(null)
+            }}
+          />
+          <button type="button" className="chip chip--strong" onClick={save} disabled={busy || !name.trim()}>
+            Speichern
+          </button>
+          <button type="button" className="link-button" onClick={() => setKind(null)}>
+            Abbrechen
+          </button>
+        </div>
+      ) : (
+        <div className="chips">
+          <button type="button" className="chip" onClick={() => { setKind('preset'); setName(mosaic.result.titel); setMessage(null) }}>
+            Als Preset speichern
+          </button>
+          <button type="button" className="chip" onClick={() => { setKind('palette'); setName(`Farben ${mosaic.result.titel}`); setMessage(null) }}>
+            Farben als Palette
+          </button>
+        </div>
+      )}
+      {message && <p className={message.ok ? 'section-note' : 'field__error'} role="status">{message.text}</p>}
+    </section>
+  )
 }
 
 const DOWNLOADS: { group: string; files: [string, string, string][] }[] = [
@@ -36,7 +105,7 @@ const DOWNLOADS: { group: string; files: [string, string, string][] }[] = [
   },
 ]
 
-export function ResultSheet({ mosaic, focus, onFocus }: Props) {
+export function ResultSheet({ mosaic, focus, onFocus, onPrevious, onSaved }: Props) {
   const { result, parts, files } = mosaic
   const stats = result.statistik
   const [sort, setSort] = useState<'color' | 'count'>('color')
@@ -63,6 +132,14 @@ export function ResultSheet({ mosaic, focus, onFocus }: Props) {
         <p className="result__size-note">
           Noppen, also {studsToCm(stats.breite)} × {studsToCm(stats.hoehe)} cm
         </p>
+        {onPrevious && (
+          <p className="result__version">
+            Bearbeitete Version.{' '}
+            <button type="button" className="link-button" onClick={onPrevious}>
+              Vorherige Version öffnen
+            </button>
+          </p>
+        )}
         <dl className="facts">
           <div><dt>Teile</dt><dd>{number(stats.teile)}</dd></div>
           <div><dt>Farben</dt><dd>{stats.farben}</dd></div>
@@ -161,6 +238,8 @@ export function ResultSheet({ mosaic, focus, onFocus }: Props) {
           )}
         </section>
       )}
+
+      {!mosaic.demo && <SaveAs mosaic={mosaic} onSaved={onSaved} />}
 
       <section className="result__section" aria-labelledby="files-title">
         <h3 id="files-title">Herunterladen</h3>

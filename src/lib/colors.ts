@@ -67,3 +67,17 @@ export function isLight(hex: string) {
   const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255]
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 150
 }
+
+const hue = (hex: string) => {
+  const n = parseInt(hex.slice(1), 16)
+  const [r, g, b] = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  if (max - min < 0.12) return -1 + max // Grautöne zuerst, von dunkel nach hell
+  const d = max - min
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+  return (h * 60 + 360) % 360
+}
+
+/** Farben nach Farbton: erst Grautöne, dann einmal durch den Farbkreis. */
+export const sortByHue = <T extends { hex: string }>(colors: T[]) => [...colors].sort((a, b) => hue(a.hex) - hue(b.hex))

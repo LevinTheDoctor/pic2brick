@@ -2,29 +2,52 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import {
   ApiError,
   createMosaic,
+  detectBackground,
+  editMosaic,
   getColors,
   getHealth,
   getOptions,
+  listPalettes,
+  listPresets,
+  type Background,
   type Color,
+  type EditRequest,
   type Health,
   type Options,
+  type Palette,
+  type Preset,
 } from './api/client'
 import { BuildingOverlay } from './components/BuildingOverlay'
+import { ComposeDock, type ComposeView } from './components/ComposeDock'
 import { Dock, type View } from './components/Dock'
 import { DropZone } from './components/DropZone'
 import { Glass, GlassFilter } from './components/Glass'
 import { InstructionsViewer } from './components/InstructionsViewer'
+import { PhotoEditor } from './components/PhotoEditor'
 import { QuickPreview } from './components/QuickPreview'
 import { ResultSheet } from './components/ResultSheet'
 import { ServerNotice } from './components/ServerNotice'
 import { SettingsSheet } from './components/SettingsSheet'
+import { StudEditor } from './components/StudEditor'
 import { TopView } from './components/TopView'
 import { buildColorTable } from './lib/colors'
 import { asList, colorHex, computeSize, effective, previewPalette, serialize, type Value, type Values } from './lib/form'
 import { forgetMosaic, loadRecent, rememberMosaic, type RecentMosaic } from './lib/history'
 import { studsToCm } from './lib/labels'
 import { instructionPages, loadDemo, loadMosaic, type LoadedMosaic } from './lib/mosaic'
+import {
+  GEOMETRY_FIELDS,
+  editedAspect,
+  flip,
+  formatCrop,
+  parseCrop,
+  photoFields,
+  refitCrop,
+  rotate,
+  rotatedSize,
+} from './lib/photo'
 import type { PreviewSettings } from './lib/pixelate'
+import { useServerImage } from './lib/useServerImage'
 import type { CameraPreset } from './three/MosaicScene'
 
 // three.js erst laden, wenn ein Mosaik gezeigt wird
@@ -43,10 +66,12 @@ export default function App() {
   const [health, setHealth] = useState<Health | null>(null)
   const [options, setOptions] = useState<Options | null>(null)
   const [catalog, setCatalog] = useState<Color[] | null>(null)
+  const [palettes, setPalettes] = useState<Palette[]>([])
+  const [presets, setPresets] = useState<Preset[]>([])
 
   const [photo, setPhoto] = useState<Photo | null>(null)
   const [values, setValues] = useState<Values>({})
-  const [building, setBuilding] = useState<{ controller: AbortController; startedAt: number } | null>(null)
+  const [building, setBuilding] = useState<{ controller: AbortController; startedAt: number; withGuide: boolean } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const [mosaic, setMosaic] = useState<LoadedMosaic | null>(null)
@@ -59,8 +84,16 @@ export default function App() {
 
   const [recent, setRecent] = useState<RecentMosaic[]>(loadRecent)
   const [panel, setPanel] = useState<Panel>(null)
+  const [composeView, setComposeView] = useState<ComposeView>('preview')
+  const [cropLocked, setCropLocked] = useState(true)
+  const [showMask, setShowMask] = useState(false)
+  const [background, setBackground] = useState<{ file: File; key: string; result: Background } | null>(null)
   const [dragging, setDragging] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
+
+  // Paletten und Presets: ältere Server kennen sie nicht, dann bleiben die Listen leer
+  const refreshPalettes = useCallback(() => listPalettes().then(setPalettes, () => setPalettes([])), [])
+  const refreshPresets = useCallback(() => listPresets().then(setPresets, () => setPresets([])), [])
 
   // Server, Optionen und Farbkatalog
   const connect = useCallback(
@@ -71,10 +104,12 @@ export default function App() {
           setOptions(o)
           setCatalog(c)
           setStatus('ok')
+          void refreshPalettes()
+          void refreshPresets()
         },
         () => setStatus('offline'),
       ),
-    [],
+    [refreshPalettes, refreshPresets],
   )
 
   useEffect(() => {
@@ -104,23 +139,27 @@ export default function App() {
         }
         return { file, url: URL.createObjectURL(file), bitmap }
       })
+      // Drehen und Ausschnitt gehören zum alten Foto
+      setValues((old) => Object.fromEntries(Object.entries(old).filter(([key]) => !GEOMETRY_FIELDS.includes(key))))
       setMosaic(null)
       setFocus(null)
       setError(null)
       setPanel(null)
+      setComposeView('preview')
+      setShowMask(false)
     } catch {
       setError('Dieses Bild lässt sich nicht öffnen. Wähle eine JPG- oder PNG-Datei.')
     }
   }, [])
 
-  const showMosaic = useCallback((loaded: LoadedMosaic, remember = true) => {
+  const showMosaic = useCallback((loaded: LoadedMosaic, remember = true, keepView = false) => {
     const last = Math.max((loaded.model?.steps.length ?? 1) - 1, 0)
     setMosaic(loaded)
     setStep(last)
     setAnimateStep(false)
     setPlaying(false)
     setFocus(null)
-    setView(loaded.model ? '3d' : 'top')
+    if (!keepView) setView(loaded.model ? '3d' : 'top')
     setPanel(null)
     setError(null)
     const s = loaded.result.statistik
@@ -137,9 +176,9 @@ export default function App() {
       )
   }, [])
 
-  const openRecent = async (id: string) => {
+  const openRecent = async (id: string, keepView = false) => {
     try {
-      showMosaic(await loadMosaic(id))
+      showMosaic(await loadMosaic(id), true, keepView)
       setPhoto(null)
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Das Mosaik konnte nicht geladen werden.')
@@ -155,17 +194,86 @@ export default function App() {
     }
   }
 
+  // Foto: gedreht und zugeschnitten, wie es ins Mosaik geht
+  const online = status === 'ok'
+  const rotated = photo ? rotatedSize(photo.bitmap.width, photo.bitmap.height, values) : { width: 1, height: 1 }
+  const rotatedAspect = rotated.width / rotated.height
+  const aspect = photo ? editedAspect(photo.bitmap.width, photo.bitmap.height, values) : 1
+  const size = computeSize(options, values, aspect)
+  const frame = Number(effective(options, values, 'rahmen') ?? 1)
+  const innerAspect = Math.max(size.width - 2 * frame, 1) / Math.max(size.height - 2 * frame, 1)
+
+  // Fester Ausschnitt: passt nach neuem Format oder neuer Größe ins Seitenverhältnis des Mosaiks
+  const storedCrop = parseCrop(values.ausschnitt)
+  const lockRatio = rotatedAspect / innerAspect
+  const crop =
+    storedCrop && cropLocked && Math.abs(storedCrop.h - storedCrop.w * lockRatio) > 0.5
+      ? refitCrop(storedCrop, lockRatio)
+      : storedCrop
+  /** Was an den Server geht */
+  const sent: Values = crop ? { ...values, ausschnitt: formatCrop(crop) } : values
+
+  const edited = useServerImage(online ? (photo?.file ?? null) : null, photo ? photoFields(sent) : null)
+  const uncropped = useServerImage(
+    online && !mosaic && composeView === 'photo' ? (photo?.file ?? null) : null,
+    photo ? photoFields(values, { crop: false }) : null,
+    1400,
+  )
+
+  // Hintergrund erkennen, auf dem gedrehten Bild ohne Ausschnitt (wie in der Foto-Ansicht)
+  const detectFields = photoFields(
+    Object.fromEntries(['drehen', 'spiegeln', 'hintergrund_toleranz'].filter((f) => f in values).map((f) => [f, values[f]])),
+  )
+  const detectKey = photo && online ? JSON.stringify(detectFields) : null
+  useEffect(() => {
+    if (!photo || detectKey === null) return
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      detectBackground(photo.file, JSON.parse(detectKey), controller.signal).then(
+        (result) => setBackground({ file: photo.file, key: detectKey, result }),
+        () => {
+          // ohne Erkennung gibt es nur keinen Hinweis
+        },
+      )
+    }, 300)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [photo, detectKey])
+  const currentBackground = photo && background?.file === photo.file ? background.result : null
+  const detecting = detectKey !== null && !(background?.file === photo?.file && background?.key === detectKey)
+
   const build = async () => {
     if (!photo) return
     const controller = new AbortController()
-    setBuilding({ controller, startedAt: Date.now() })
+    const withGuide = asList(effective(options, values, 'ausgaben')).includes('instructions_png')
+    setBuilding({ controller, startedAt: Date.now(), withGuide })
     setError(null)
     try {
-      const created = await createMosaic(photo.file, serialize(values), controller.signal)
+      const created = await createMosaic(photo.file, serialize(sent), controller.signal)
       showMosaic(await loadMosaic(created.id))
     } catch (e) {
       if ((e as Error).name !== 'AbortError')
         setError(e instanceof ApiError ? e.message : 'Beim Bauen ist etwas schiefgelaufen. Versuche es noch einmal.')
+    } finally {
+      setBuilding(null)
+    }
+  }
+
+  /** Noppen umfärben: der Server rechnet ein neues Mosaik, die alte Version bleibt als `basis`. */
+  const applyEdits = async (edits: EditRequest) => {
+    if (!mosaic) return
+    const controller = new AbortController()
+    const config = mosaic.result.konfiguration as { outputs?: string[] }
+    setBuilding({ controller, startedAt: Date.now(), withGuide: config.outputs?.includes('instructions_png') ?? true })
+    setError(null)
+    try {
+      const created = await editMosaic(mosaic.id, edits, controller.signal)
+      showMosaic(await loadMosaic(created.id), true, true)
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError')
+        setError(e instanceof ApiError ? e.message : 'Die Änderungen konnten nicht übernommen werden. Versuche es noch einmal.')
     } finally {
       setBuilding(null)
     }
@@ -187,26 +295,24 @@ export default function App() {
   // Farben fürs 3D-Modell
   const colors = useMemo(() => buildColorTable(mosaic?.result.palette, catalog ?? undefined), [mosaic, catalog])
 
-  // Schnellvorschau
-  const aspect = photo ? photo.bitmap.width / photo.bitmap.height : 1
-  const size = computeSize(options, values, aspect)
-  const previewSettings: PreviewSettings = useMemo(() => {
-    const frame = Number(effective(options, values, 'rahmen') ?? 1)
-    return {
+  // Schnellvorschau: vom Server bearbeitetes Foto, sonst das Original mit Canvas-Filter
+  const fromServer = !!edited.image
+  const previewSettings: PreviewSettings = useMemo(
+    () => ({
       width: size.width,
       height: size.height,
       fit: effective(options, values, 'modus') === 'einpassen' ? 'einpassen' : 'zuschneiden',
-      contrast: Number(effective(options, values, 'kontrast') ?? 1),
-      saturation: Number(effective(options, values, 'saettigung') ?? 1),
-      palette: previewPalette(options, values, catalog),
+      contrast: fromServer ? 1 : Number(effective(options, values, 'kontrast') ?? 1),
+      saturation: fromServer ? 1 : Number(effective(options, values, 'saettigung') ?? 1),
+      palette: previewPalette(options, values, catalog, palettes),
       frame,
       frameColor: colorHex(catalog, (effective(options, values, 'rahmenfarbe') as number | null) ?? 0, '#05131D'),
       padColor: '#FFFFFF',
-    }
-  }, [options, values, catalog, size.width, size.height])
+    }),
+    [options, values, catalog, palettes, size.width, size.height, frame, fromServer],
+  )
 
   const pages = mosaic ? instructionPages(mosaic.files) : []
-  const outputs = asList(effective(options, values, 'ausgaben'))
   const title = mosaic?.result.titel ?? (photo ? photo.file.name.replace(/\.[^.]+$/, '') : null)
   const stats = mosaic?.result.statistik
 
@@ -252,8 +358,28 @@ export default function App() {
           <TopView src={mosaic.files['vorschau.png']} title={mosaic.result.titel} />
         )}
         {mosaic && view === 'guide' && <InstructionsViewer pages={pages} pdf={mosaic.files['anleitung.pdf']} />}
-        {!mosaic && photo && (
-          <QuickPreview image={photo.bitmap} settings={previewSettings} building={!!building} />
+        {mosaic && view === 'edit' && (
+          <StudEditor
+            key={mosaic.id}
+            mosaic={mosaic}
+            building={!!building}
+            onApply={applyEdits}
+            onPrevious={mosaic.result.basis ? () => void openRecent(mosaic.result.basis!, true) : null}
+          />
+        )}
+        {!mosaic && photo && composeView === 'preview' && (
+          <QuickPreview image={edited.image?.bitmap ?? photo.bitmap} settings={previewSettings} building={!!building} />
+        )}
+        {!mosaic && photo && composeView === 'photo' && (
+          <PhotoEditor
+            src={uncropped.image?.url ?? photo.url}
+            imageAspect={uncropped.image ? uncropped.image.bitmap.width / uncropped.image.bitmap.height : photo.bitmap.width / photo.bitmap.height}
+            crop={crop}
+            lockAspect={cropLocked ? innerAspect : null}
+            mask={showMask ? (currentBackground?.maske_png ?? null) : null}
+            pending={uncropped.pending}
+            onCrop={(next) => changeValue('ausschnitt', next ? formatCrop(next) : undefined)}
+          />
         )}
         {!mosaic && !photo && (
           <DropZone
@@ -330,9 +456,19 @@ export default function App() {
               onChange={changeValue}
               onReplace={setValues}
               aspect={aspect}
-              fileName={photo.file.name}
+              file={photo.file}
               building={!!building}
               onBuild={build}
+              palettes={palettes}
+              presets={presets}
+              onRefreshPalettes={refreshPalettes}
+              onRefreshPresets={refreshPresets}
+              background={currentBackground}
+              detecting={detecting}
+              onPickCrop={() => {
+                setComposeView('photo')
+                setPanel(null)
+              }}
             />
           ) : (
             <p className="sheet__empty">
@@ -359,6 +495,11 @@ export default function App() {
               setFocus(code)
               if (code !== null && view !== '3d' && mosaic.model) setView('3d')
             }}
+            onPrevious={mosaic.result.basis ? () => void openRecent(mosaic.result.basis!) : null}
+            onSaved={() => {
+              void refreshPalettes()
+              void refreshPresets()
+            }}
           />
         </Glass>
       )}
@@ -366,7 +507,7 @@ export default function App() {
       {building && (
         <BuildingOverlay
           startedAt={building.startedAt}
-          withGuide={outputs.includes('instructions_png')}
+          withGuide={building.withGuide}
           onCancel={() => building.controller.abort()}
         />
       )}
@@ -394,6 +535,23 @@ export default function App() {
               onCamera={(preset) => setCamera((c) => ({ preset, nonce: c.nonce + 1 }))}
               hasModel={!!mosaic.model}
               hasGuide={pages.length > 0}
+              hasRaster={!mosaic.demo && online}
+            />
+          ) : photo ? (
+            <ComposeDock
+              view={composeView}
+              onView={setComposeView}
+              editable={!!options}
+              onRotate={(turns) => setValues((old) => rotate(old, turns))}
+              onFlip={() => setValues(flip)}
+              flipped={Boolean(values.spiegeln)}
+              locked={cropLocked}
+              onLocked={setCropLocked}
+              cropped={!!crop}
+              onResetCrop={() => changeValue('ausschnitt', undefined)}
+              hasMask={!!currentBackground}
+              showMask={showMask}
+              onShowMask={setShowMask}
             />
           ) : null}
           <Glass as="nav" variant="clear" className="panel-tabs" aria-label="Flächen">
