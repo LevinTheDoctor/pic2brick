@@ -1,0 +1,67 @@
+:root {
+  /* Farben – nach LEGO-Farben benannt */
+  --stage: #e6eaef; /* Light Bluish Gray, aufgehellt */
+  --stage-deep: #d3d9e0;
+  --ink: #05131d; /* LEGO Black */
+  --ink-2: rgb(5 19 29 / 0.68);
+  --ink-3: rgb(5 19 29 / 0.46);
+  --hairline: rgb(5 19 29 / 0.1);
+  --field: rgb(255 255 255 / 0.5);
+  --field-hover: rgb(255 255 255 / 0.72);
+  --action: #f2cd37; /* LEGO Yellow */
+  --action-edge: #c9a21e; /* Seitenwand des gelben Steins */
+  --action-ink: #05131d;
+  --signal: #c91a09; /* LEGO Red */
+
+  --glass-fill: rgb(255 255 255 / 0.42);
+  --glass-fill-strong: rgb(255 255 255 / 0.58);
+  --glass-rim: rgb(255 255 255 / 0.9);
+  --glass-edge: rgb(255 255 255 / 0.55);
+  --glass-shadow: 0 2px 0 rgb(5 19 29 / 0.05), 0 18px 40px -22px rgb(5 19 29 / 0.4);
+  --glass-blur: 22px;
+
+  /* Grundplatte als Bühne: Noppenraster */
+  --stud-line: rgb(5 19 29 / 0.07);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%2305131d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  /* Form */
+  --r-sheet: 30px;
+  --r-pill: 999px;
+  --r-field: 14px;
+  --gutter: 16px;
+
+  /* Schrift: eine Familie, Größen nach klassischer Skala */
+  --font: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --t-12: 0.75rem;
+  --t-14: 0.875rem;
+  --t-16: 1rem;
+  --t-21: 1.3125rem;
+  --t-36: 2.25rem;
+  --t-60: 3.75rem;
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.45, 0.5, 1);
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --stage: #0d1a23; /* aus LEGO Black abgeleitet */
+    --stage-deep: #081118;
+    --ink: #eef2f5;
+    --ink-2: rgb(238 242 245 / 0.7);
+    --ink-3: rgb(238 242 245 / 0.48);
+    --hairline: rgb(238 242 245 / 0.12);
+    --field: rgb(255 255 255 / 0.07);
+    --field-hover: rgb(255 255 255 / 0.13);
+    --glass-fill: rgb(22 36 47 / 0.5);
+    --glass-fill-strong: rgb(20 34 44 / 0.72);
+    --glass-rim: rgb(255 255 255 / 0.22);
+    --glass-edge: rgb(255 255 255 / 0.08);
+    --glass-shadow: 0 2px 0 rgb(0 0 0 / 0.25), 0 18px 40px -18px rgb(0 0 0 / 0.7);
+    --stud-line: rgb(238 242 245 / 0.06);
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23eef2f5' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    color-scheme: dark;
+  }
+}

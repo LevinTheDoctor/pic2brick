@@ -1,0 +1,34 @@
+/* Liquid Glass: Milchglas mit klarer Lichtkante. In Chromium bricht ein SVG-Filter die Ränder. */
+
+.glass {
+  position: relative;
+  isolation: isolate;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(185%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(185%);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--r-sheet);
+  box-shadow:
+    inset 0 1px 0 var(--glass-rim),
+    var(--glass-shadow);
+}
+
+/* Klarere Variante für schwebende Steuerelemente (Dock, Leiste) */
+.glass--clear {
+  --glass-blur: 12px;
+  background: color-mix(in srgb, var(--glass-fill) 88%, transparent);
+}
+
+html.refract .glass--clear {
+  -webkit-backdrop-filter: blur(3px) url(#liquid-refract) blur(var(--glass-blur)) saturate(190%);
+  backdrop-filter: blur(3px) url(#liquid-refract) blur(var(--glass-blur)) saturate(190%);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .glass--clear {
+    background: var(--glass-fill-strong);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
