@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import type { RecentMosaic } from '../lib/history'
 import { studsToCm } from '../lib/labels'
+import { BACKEND_REPO, FRONTEND_REPO } from '../lib/links'
 import { Glass } from './Glass'
 import { PolaroidArt } from './PolaroidArt'
 
@@ -90,6 +91,18 @@ export function DropZone({ onFile, recent, onOpen, onForget, onDemo, dragging }:
           </ul>
         </section>
       )}
+
+      <footer className="welcome__source">
+        Quellcode auf GitHub:{' '}
+        <a href={FRONTEND_REPO} target="_blank" rel="noreferrer">
+          Pic2Brick
+        </a>{' '}
+        (Frontend) und{' '}
+        <a href={BACKEND_REPO} target="_blank" rel="noreferrer">
+          lego-mosaik
+        </a>{' '}
+        (Backend)
+      </footer>
     </div>
   )
 }

@@ -2169,6 +2169,25 @@ input[type='range']:active::-webkit-slider-thumb {
   scrollbar-width: none;
 }
 
+.welcome__source {
+  font-size: var(--t-12);
+  color: var(--ink-3);
+  text-align: center;
+}
+
+.welcome__source a {
+  color: var(--ink-2);
+  font-weight: 650;
+  text-decoration: underline;
+  text-decoration-color: var(--hairline);
+  text-underline-offset: 3px;
+}
+
+.welcome__source a:hover {
+  color: var(--ink);
+  text-decoration-color: currentColor;
+}
+
 .dropzone {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
