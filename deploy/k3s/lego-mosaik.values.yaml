@@ -56,3 +56,5 @@ postgresql:
 persistence:
   size: 20Gi
   storageClass: synology-iscsi-storage
+  # Synology CSI ignoriert fsGroup (kein fsType in der StorageClass): Besitzer selbst setzen
+  fixOwnership: true

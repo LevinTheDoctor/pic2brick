@@ -199,6 +199,7 @@ in `lego-mosaik/deploy/helm/lego-mosaik/values.yaml` und `lego-mosaik/docs/cloud
 | `postgresql.persistence.size` | `8Gi` | Volume der Datenbank (k3s: `local-path`) |
 | `persistence.size` | `20Gi` | Volume für die Mosaik-Dateien |
 | `persistence.storageClass` | `synology-iscsi-storage` | Synology CSI legt die LUN an (`Retain`) |
+| `persistence.fixOwnership` | `true` | Init-Container gibt den Volume-Ordner dem App-Nutzer; Synology CSI wendet `fsGroup` nicht an |
 | `persistence.iscsi.*` | – | Alternative: vorhandene LUN als statisches PV (dann `storageClass` weglassen) |
 | `catalogImport.schedule` | `17 3 * * *` (Standard) | Täglicher Import der Rebrickable-Daten |
 | `config.logLevel` / `logFormat` | `INFO` / `json` (Standard) | Logs |
@@ -409,6 +410,7 @@ kubectl delete namespace lego      # löscht auch Secrets und Volumes (Daten weg
 | `ImagePullBackOff` mit `401`/`403` | Paket auf GHCR privat, siehe 5.3 („Public“) |
 | `ImagePullBackOff` mit `not found` | Tag gibt es nicht: CI-Lauf fehlgeschlagen oder noch nicht fertig (`gh run list`), Commit nicht gepusht |
 | `deploy.sh`: „HEAD ist nicht gepusht“ | Erst `git push`, dann baut CI das Image |
+| Backend nie bereit, `/actuator/health`: `speicher` „nicht beschreibbar“ | Volume gehört root: `persistence.fixOwnership=true` |
 | PVC `lego-mosaik-mosaike` bleibt `Pending` | Synology CSI prüfen: `kubectl -n synology-csi logs synology-csi-controller-0 -c csi-plugin` |
 | `http://<node-ip>/` antwortet nicht | Auf diesem Node läuft kein Traefik-Pod, siehe 5.5 |
 | Frontend-Pod startet nicht: `host not found in upstream "lego-mosaik"` | Backend noch nicht installiert oder anderer Release-Name → `backend.url` anpassen |
