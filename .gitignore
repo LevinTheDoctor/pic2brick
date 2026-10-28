@@ -25,3 +25,6 @@ dist-ssr
 
 # Backend-Doku und Beispielausgabe nur lokal
 backend-docs
+
+# Lokale Secret-Dateien für k3s (siehe deploy/KONFIGURATION.md)
+deploy/k3s/*.secret.*

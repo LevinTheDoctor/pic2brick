@@ -1,0 +1,38 @@
+# Frontend (Chart deploy/helm/pic2brick) für k3s.
+#   helm upgrade --install pic2brick deploy/helm/pic2brick -n lego \
+#     -f deploy/k3s/pic2brick.values.yaml --set image.tag=<tag>
+
+image:
+  # Öffentlich auf GHCR, gebaut von GitHub Actions in diesem Repo (amd64 + arm64)
+  repository: ghcr.io/levinthedoctor/pic2brick
+  tag: "" # sha-<commit> per --set image.tag=… oder deploy.sh
+  pullPolicy: IfNotPresent
+
+backend:
+  url: http://lego-mosaik:80
+
+# k3s-Standard für das Pod-Netz (--cluster-cidr); bei eigenem Wert anpassen
+trustedProxyCidr: 10.42.0.0/16
+
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    - host: "" # jede Node-IP; optional zusätzlich einen LAN-Namen eintragen
+      paths:
+        - path: /
+          pathType: Prefix
+
+cloudflared:
+  enabled: true
+  existingSecret: cloudflared-tunnel
+
+# Die Werte unten sind die Standardwerte – hier anpassen, wenn nötig
+rateLimits:
+  api: { rate: 120r/m, burst: 40 }
+  rechnen: { rate: 6r/m, burst: 4 }
+  rechnenGleichzeitig: 2
+  rechnenGleichzeitigGesamt: 6
+  preise: { rate: 3r/m, burst: 2 }
+  preiseGesamt: { rate: 1r/m, burst: 10 }
+  schreiben: { rate: 10r/m, burst: 5 }

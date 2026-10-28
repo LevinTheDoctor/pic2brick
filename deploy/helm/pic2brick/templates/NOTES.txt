@@ -1,0 +1,22 @@
+Pic2Brick ({{ .Chart.AppVersion }}) ist installiert. Backend: {{ .Values.backend.url }}
+
+{{- if .Values.ingress.enabled }}
+
+Über die Node-IP (Traefik):
+  kubectl get nodes -o wide          # INTERNAL-IP bzw. EXTERNAL-IP
+  open http://<node-ip>/
+{{- end }}
+{{- if .Values.cloudflared.enabled }}
+
+Cloudflare Tunnel: Public Hostname im Dashboard auf diesen Service zeigen lassen:
+  http://{{ include "pic2brick.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.tunnelPort }}
+Status:
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "pic2brick.fullname" . }}-cloudflared
+{{- end }}
+
+Rate Limits pro Client-IP: /api {{ .Values.rateLimits.api.rate }}, Rechnen {{ .Values.rateLimits.rechnen.rate }},
+Preise {{ .Values.rateLimits.preise.rate }}, Presets/Paletten schreiben {{ .Values.rateLimits.schreiben.rate }}.
+Gesperrt: /api/actuator, /api/teile/aktualisieren.
+
+Test:
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}

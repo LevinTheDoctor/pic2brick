@@ -1,0 +1,98 @@
+# Gemeinsamer Teil beider server-Blöcke (eingebunden aus default.conf)
+
+root /usr/share/nginx/html;
+
+client_max_body_size ${MAX_UPLOAD};
+proxy_http_version 1.1;
+proxy_set_header Connection "";
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $remote_addr;
+proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+# Mosaike entstehen synchron und dauern bis zu Minuten
+proxy_read_timeout ${PROXY_TIMEOUT};
+proxy_send_timeout ${PROXY_TIMEOUT};
+
+add_header X-Content-Type-Options nosniff always;
+add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+# Fehler als {"fehler": …} – das Frontend zeigt diese Meldung direkt an
+error_page 429 @zu_viele;
+error_page 413 @zu_gross;
+error_page 502 503 504 @backend_weg;
+
+location @zu_viele {
+    default_type "application/json; charset=utf-8";
+    add_header Retry-After 60 always;
+    return 429 '{"fehler":"Zu viele Anfragen. Bitte kurz warten und es dann noch einmal versuchen."}';
+}
+location @zu_gross {
+    default_type "application/json; charset=utf-8";
+    return 413 '{"fehler":"Die Datei ist zu groß."}';
+}
+location @backend_weg {
+    default_type "application/json; charset=utf-8";
+    return 503 '{"fehler":"Der Server ist gerade nicht erreichbar."}';
+}
+
+location = /healthz {
+    access_log off;
+    default_type text/plain;
+    return 200 "ok\n";
+}
+
+# --- Statische Dateien (ohne Limit) ---------------------------------------------------
+location /assets/ {
+    expires 1y;
+    add_header Cache-Control "public, immutable" always;
+    add_header X-Content-Type-Options nosniff always;
+    try_files $uri =404;
+}
+
+location / {
+    add_header Cache-Control "no-cache" always;
+    add_header X-Content-Type-Options nosniff always;
+    try_files $uri /index.html;
+}
+
+# --- API ------------------------------------------------------------------------------
+# Nicht öffentlich: Betriebs-Endpunkte und Katalog-Update (läuft als CronJob)
+location ^~ /api/actuator {
+    return 404;
+}
+location = /api/teile/aktualisieren {
+    return 404;
+}
+
+# Rechenintensiv (POST)
+location ~ ^/api/(mosaike|mosaike/[^/]+/bearbeiten|bild/vorschau|bild/hintergrund)$ {
+    limit_req zone=api burst=${BURST_API} nodelay;
+    limit_req zone=rechnen burst=${BURST_RECHNEN} nodelay;
+    limit_conn rechnen_conn ${CONN_RECHNEN};
+    limit_conn rechnen_conn_gesamt ${CONN_RECHNEN_GESAMT};
+    rewrite ^/api(/.*)$ $1 break;
+    proxy_pass ${BACKEND_URL};
+}
+
+# BrickLink-Preise abfragen (POST)
+location ~ ^/api/mosaike/[^/]+/preise$ {
+    limit_req zone=api burst=${BURST_API} nodelay;
+    limit_req zone=preise burst=${BURST_PREISE} nodelay;
+    limit_req zone=preise_gesamt burst=${BURST_PREISE_GESAMT} nodelay;
+    rewrite ^/api(/.*)$ $1 break;
+    proxy_pass ${BACKEND_URL};
+}
+
+# Gemeinsame Presets und Paletten, auch „Preset aus Mosaik“ (Schreiben gedrosselt, Lesen normal)
+location ~ ^/api/(presets|paletten)(/|$)|^/api/mosaike/[^/]+/preset$ {
+    limit_req zone=api burst=${BURST_API} nodelay;
+    limit_req zone=schreiben burst=${BURST_SCHREIBEN} nodelay;
+    rewrite ^/api(/.*)$ $1 break;
+    proxy_pass ${BACKEND_URL};
+}
+
+location /api/ {
+    limit_req zone=api burst=${BURST_API} nodelay;
+    rewrite ^/api(/.*)$ $1 break;
+    proxy_pass ${BACKEND_URL};
+}

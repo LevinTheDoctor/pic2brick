@@ -1,0 +1,35 @@
+{{- if .Values.networkPolicy.enabled }}
+# Nur Traefik (Port 8080) und cloudflared (Port 8081) dürfen den nginx-Pod erreichen.
+# Damit kann niemand im Cluster CF-Connecting-IP setzen und so die Rate Limits umgehen.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pic2brick.fullname" . }}
+  labels:
+    {{- include "pic2brick.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "pic2brick.webSelectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace }}
+        # helm test
+        - podSelector:
+            matchLabels:
+              {{- include "pic2brick.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: test
+      ports:
+        - port: http
+    {{- if .Values.cloudflared.enabled }}
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "pic2brick.tunnelSelectorLabels" . | nindent 14 }}
+      ports:
+        - port: tunnel
+    {{- end }}
+{{- end }}

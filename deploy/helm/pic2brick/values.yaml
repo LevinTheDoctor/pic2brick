@@ -1,0 +1,107 @@
+# Werte für pic2brick (Frontend + Proxy auf lego-mosaik). Siehe deploy/KONFIGURATION.md.
+
+image:
+  # Öffentlich auf GHCR, gebaut von GitHub Actions (.github/workflows/ci.yml)
+  repository: ghcr.io/levinthedoctor/pic2brick
+  tag: "" # leer = appVersion aus Chart.yaml
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Rate Limits gelten pro Pod: bei 2 Replicas verdoppeln sie sich
+replicaCount: 1
+
+backend:
+  # Service des Backend-Charts (Release "lego-mosaik" im selben Namespace)
+  url: http://lego-mosaik:80
+
+# Pod-Netz, aus dem Proxys (Traefik, cloudflared) die Client-IP mitteilen dürfen (k3s: cluster-cidr)
+trustedProxyCidr: 10.42.0.0/16
+
+proxy:
+  maxUpload: 25m # Backend erlaubt 20 MB pro Bild
+  timeout: 300s # Mosaike entstehen synchron
+
+# Pro Client-IP; nginx-Syntax: r/s oder r/m. burst = kurzzeitig zusätzlich erlaubt.
+rateLimits:
+  api: { rate: 120r/m, burst: 40 } # alle /api-Aufrufe
+  rechnen: { rate: 6r/m, burst: 4 } # Mosaik erzeugen/bearbeiten, Bildvorschau, Hintergrund
+  rechnenGleichzeitig: 2 # parallele Rechen-Anfragen pro IP
+  rechnenGleichzeitigGesamt: 6 # parallele Rechen-Anfragen insgesamt (schützt das Backend)
+  preise: { rate: 3r/m, burst: 2 } # BrickLink-Preise pro IP
+  preiseGesamt: { rate: 1r/m, burst: 10 } # BrickLink-Preise insgesamt (Tageskontingent)
+  schreiben: { rate: 10r/m, burst: 5 } # Presets/Paletten anlegen, ändern, löschen
+
+service:
+  type: ClusterIP
+  port: 80 # → 8080 (über Traefik)
+  tunnelPort: 8081 # → 8081 (über cloudflared)
+
+# Erreichbar über die Node-IP: Traefik von k3s, ohne Host = jede Adresse
+ingress:
+  enabled: true
+  className: traefik
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+  hosts:
+    - host: "" # leer = jede IP/jeder Name; z. B. pic2brick.lan
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Cloudflare Tunnel (remote verwaltet): Token aus einem Secret, Ziel im Cloudflare-Dashboard
+# auf http://<release>.<namespace>.svc.cluster.local:8081 setzen
+cloudflared:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: cloudflare/cloudflared
+    tag: "2026.10.0"
+    pullPolicy: IfNotPresent
+  existingSecret: cloudflared-tunnel
+  existingSecretKey: token
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+# 8080 nur von Traefik (kube-system), 8081 nur von cloudflared: so lässt sich
+# CF-Connecting-IP nicht fälschen und die Limits nicht umgehen
+networkPolicy:
+  enabled: true
+  ingressNamespace: kube-system
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 101
+  runAsGroup: 101
+  fsGroup: 101
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 32Mi
+  limits:
+    memory: 128Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

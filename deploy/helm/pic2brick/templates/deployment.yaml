@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pic2brick.fullname" . }}
+  labels:
+    {{- include "pic2brick.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pic2brick.webSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pic2brick.labels" . | nindent 8 }}
+        app.kubernetes.io/component: web
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "pic2brick.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: nginx
+          image: {{ include "pic2brick.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: tunnel
+              containerPort: 8081
+          # Ersetzt ${…} in /etc/nginx/templates (siehe deploy/nginx/)
+          env:
+            - name: BACKEND_URL
+              value: {{ .Values.backend.url | trimSuffix "/" | quote }}
+            - name: TRUSTED_PROXY_CIDR
+              value: {{ .Values.trustedProxyCidr | quote }}
+            - name: MAX_UPLOAD
+              value: {{ .Values.proxy.maxUpload | quote }}
+            - name: PROXY_TIMEOUT
+              value: {{ .Values.proxy.timeout | quote }}
+            {{- with .Values.rateLimits }}
+            - name: RATE_API
+              value: {{ .api.rate | quote }}
+            - name: BURST_API
+              value: {{ .api.burst | quote }}
+            - name: RATE_RECHNEN
+              value: {{ .rechnen.rate | quote }}
+            - name: BURST_RECHNEN
+              value: {{ .rechnen.burst | quote }}
+            - name: CONN_RECHNEN
+              value: {{ .rechnenGleichzeitig | quote }}
+            - name: CONN_RECHNEN_GESAMT
+              value: {{ .rechnenGleichzeitigGesamt | quote }}
+            - name: RATE_PREISE
+              value: {{ .preise.rate | quote }}
+            - name: BURST_PREISE
+              value: {{ .preise.burst | quote }}
+            - name: RATE_PREISE_GESAMT
+              value: {{ .preiseGesamt.rate | quote }}
+            - name: BURST_PREISE_GESAMT
+              value: {{ .preiseGesamt.burst | quote }}
+            - name: RATE_SCHREIBEN
+              value: {{ .schreiben.rate | quote }}
+            - name: BURST_SCHREIBEN
+              value: {{ .schreiben.burst | quote }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          # readOnlyRootFilesystem: die erzeugte Konfiguration und Puffer brauchen Schreibplatz
+          volumeMounts:
+            - name: conf
+              mountPath: /etc/nginx/conf.d
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: conf
+          emptyDir: {}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 512Mi
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

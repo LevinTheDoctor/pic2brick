@@ -1,0 +1,61 @@
+# Pic2Brick: SPA ausliefern und /api/ an lego-mosaik weiterreichen – mit Rate Limiting,
+# weil es keine Anmeldung gibt. ${…} ersetzt das nginx-Image beim Start (envsubst);
+# Standardwerte stehen im Dockerfile, im Cluster setzt sie das Helm-Chart.
+
+server_tokens off;
+gzip on;
+gzip_types text/css application/javascript application/json image/svg+xml text/plain;
+
+# --- Echte Client-IP ------------------------------------------------------------------
+# Nur Proxys im Pod-Netz (Traefik, cloudflared) dürfen sie mitteilen. Welcher Header gilt,
+# legt der jeweilige server-Block fest.
+set_real_ip_from ${TRUSTED_PROXY_CIDR};
+real_ip_recursive on;
+
+# --- Schlüssel für die Limits ---------------------------------------------------------
+# Leerer Schlüssel = Anfrage zählt in dieser Zone nicht (z. B. GET bei Schreib-Zonen).
+map $request_method $client_post {
+    POST    $binary_remote_addr;
+    default "";
+}
+map $request_method $global_post {
+    POST    global;
+    default "";
+}
+map $request_method $client_write {
+    GET     "";
+    HEAD    "";
+    OPTIONS "";
+    default $binary_remote_addr;
+}
+
+# Alle /api-Aufrufe pro IP
+limit_req_zone $binary_remote_addr zone=api:10m rate=${RATE_API};
+# Rechenintensiv: Mosaik erzeugen/bearbeiten, Bildvorschau, Hintergrund
+limit_req_zone $client_post zone=rechnen:10m rate=${RATE_RECHNEN};
+limit_conn_zone $client_post zone=rechnen_conn:10m;
+limit_conn_zone $global_post zone=rechnen_conn_gesamt:1m;
+# BrickLink-Preise: pro IP und gesamt (Tageskontingent der BrickLink-API schonen)
+limit_req_zone $client_post zone=preise:10m rate=${RATE_PREISE};
+limit_req_zone $global_post zone=preise_gesamt:1m rate=${RATE_PREISE_GESAMT};
+# Presets und Paletten sind für alle Besucher gemeinsam: Schreiben eng drosseln
+limit_req_zone $client_write zone=schreiben:10m rate=${RATE_SCHREIBEN};
+
+limit_req_status 429;
+limit_conn_status 429;
+limit_req_log_level warn;
+limit_conn_log_level warn;
+
+# Über Traefik (Node-IP im LAN): Client-IP aus X-Forwarded-For
+server {
+    listen 8080;
+    real_ip_header X-Forwarded-For;
+    include /etc/nginx/conf.d/pic2brick.inc;
+}
+
+# Über den Cloudflare Tunnel (nur cloudflared darf hierher, siehe NetworkPolicy)
+server {
+    listen 8081;
+    real_ip_header CF-Connecting-IP;
+    include /etc/nginx/conf.d/pic2brick.inc;
+}

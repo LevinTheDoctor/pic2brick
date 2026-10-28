@@ -1,0 +1,15 @@
+# Traefik von k3s: echte Client-IP erhalten. Ohne das sieht nginx bei ServiceLB die
+# Node-IP, und alle Besucher teilen sich ein Rate Limit.
+#   sudo cp traefik-config.yaml /var/lib/rancher/k3s/server/manifests/   (auf dem Server)
+#   oder: kubectl apply -f deploy/k3s/traefik-config.yaml
+# Gibt es schon eine HelmChartConfig "traefik", den Abschnitt dort ergänzen.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    service:
+      spec:
+        externalTrafficPolicy: Local

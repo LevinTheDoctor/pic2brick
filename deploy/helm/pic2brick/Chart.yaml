@@ -1,0 +1,13 @@
+apiVersion: v2
+name: pic2brick
+description: Pic2Brick-Frontend (nginx) mit Rate Limiting und optionalem Cloudflare Tunnel vor lego-mosaik
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/LevinTheDoctor/pic2brick
+sources:
+  - https://github.com/LevinTheDoctor/pic2brick
+  - https://github.com/LevinTheDoctor/lego-mosaik
+maintainers:
+  - name: Levin Rüßmann
+keywords: [lego, mosaik, frontend, nginx, cloudflare]

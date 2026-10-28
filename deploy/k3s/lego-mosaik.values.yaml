@@ -1,0 +1,58 @@
+# Backend (Chart aus dem Repo lego-mosaik: deploy/helm/lego-mosaik) für k3s.
+#   helm upgrade --install lego-mosaik <lego-mosaik>/deploy/helm/lego-mosaik -n lego \
+#     -f deploy/k3s/lego-mosaik.values.yaml --set image.tag=<tag>
+# Release-Name "lego-mosaik" → Services lego-mosaik, lego-mosaik-postgresql
+
+image:
+  # Öffentlich auf GHCR, gebaut von GitHub Actions im Repo lego-mosaik (amd64 + arm64)
+  repository: ghcr.io/levinthedoctor/lego-mosaik
+  tag: "" # sha-<commit> per --set image.tag=… oder deploy.sh
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+# Mosaike zu rechnen ist teuer: bevorzugt auf tc-k3s (amd64), bei Ausfall auch auf dem Pi
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [tc-k3s]
+
+# Nicht von außen erreichbar: nur das Frontend (pic2brick) spricht mit dem Backend
+service:
+  type: ClusterIP
+ingress:
+  enabled: false
+
+config:
+  # Gleiche Origin über den Proxy im Frontend → kein CORS nötig
+  corsOrigins: ""
+  corsOriginRegex: ""
+  # BrickLink-Zugangsdaten (optional) als Secret, siehe KONFIGURATION.md
+  extraEnvFrom:
+    - secretRef:
+        name: lego-mosaik-bricklink
+        optional: true
+
+# Mit nur einem Replica würde das PDB "kubectl drain" blockieren
+podDisruptionBudget:
+  enabled: false
+
+# k3s: StorageClass leer = local-path (Daten unter /var/lib/rancher/k3s/storage). Das Volume
+# liegt auf dem Node, deshalb bleibt PostgreSQL fest auf tc-k3s.
+postgresql:
+  enabled: true
+  nodeSelector:
+    kubernetes.io/hostname: tc-k3s
+  persistence:
+    size: 8Gi
+
+# Mosaik-Dateien auf einer iSCSI-LUN der Synology, die das Synology CSI selbst anlegt
+# (StorageClass synology-iscsi-storage, Retain). Das Volume folgt dem Pod auf jeden Node.
+persistence:
+  size: 20Gi
+  storageClass: synology-iscsi-storage
