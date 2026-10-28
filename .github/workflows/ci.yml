@@ -1,0 +1,95 @@
+# Lint, Build, Helm-Lint und Container-Image des Frontends.
+#
+# Bei jedem Push liegt das Image (amd64 + arm64) öffentlich unter ghcr.io/levinthedoctor/pic2brick:
+#   sha-<7 Zeichen>   jeder Commit (das nimmt deploy/k3s/deploy.sh)
+#   <branch>          letzter Stand des Branches
+#   latest            letzter Stand von main
+#   1.2.3, 1.2        Tags v1.2.3
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  IMAGE: ghcr.io/levinthedoctor/pic2brick
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+      - run: helm lint deploy/helm/pic2brick
+      - name: Mit den k3s-Werten rendern
+        run: |
+          helm template ci deploy/helm/pic2brick -f deploy/k3s/pic2brick.values.yaml --set image.tag=ci > /dev/null
+          helm template ci deploy/helm/pic2brick --set cloudflared.enabled=false --set networkPolicy.enabled=false > /dev/null
+
+  image:
+    needs: [frontend, helm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name == 'push'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # nginx löst den Upstream beim Start auf; 127.0.0.1 reicht, um Start und SPA zu prüfen
+      - name: Smoke-Test
+        if: github.event_name == 'push'
+        run: |
+          docker run -d --name p2b -p 8080:8080 -e BACKEND_URL=http://127.0.0.1:9 "$IMAGE:sha-${GITHUB_SHA::7}"
+          for i in $(seq 30); do curl -sf localhost:8080/ > /dev/null && break; sleep 1; done
+          curl -sf localhost:8080/ | grep -qi '<div id="root"'
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/api/actuator/health)" = 404
+      - name: Logs bei Fehler
+        if: failure()
+        run: docker logs p2b || true
