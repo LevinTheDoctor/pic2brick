@@ -236,11 +236,10 @@ Das Backend baut auf zwei nativen Runnern (amd64, arm64) und führt die beiden d
 Image zusammen, weil scikit-image für Python 3.15 kompiliert werden muss. Ein Lauf dauert
 ca. 10 Minuten, das Frontend ca. 3 Minuten. Fortschritt: `gh run watch` im jeweiligen Repo.
 
-**Einmalig: Pakete public machen.** GHCR legt neue Pakete privat an, auch bei öffentlichen
-Repos. Nach dem ersten erfolgreichen Lauf je Paket auf
+**Public**: Die Pakete übernehmen die Sichtbarkeit des öffentlichen Repos, k3s lädt sie ohne
+Zugangsdaten. Ist ein Paket doch privat (`ImagePullBackOff` mit `401`/`403`), auf
 <https://github.com/users/LevinTheDoctor/packages/container/lego-mosaik/settings> (bzw.
-`…/pic2brick/settings`) unter **Danger Zone → Change visibility → Public** umstellen. Danach
-kann k3s die Images ohne Zugangsdaten laden.
+`…/pic2brick/settings`) unter **Danger Zone → Change visibility → Public** umstellen.
 
 Welcher Tag gehört zum aktuellen Stand?
 
@@ -407,7 +406,7 @@ kubectl delete namespace lego      # löscht auch Secrets und Volumes (Daten weg
 
 | Problem | Ursache / Lösung |
 |---|---|
-| `ImagePullBackOff` mit `401`/`403` | Paket auf GHCR noch privat, siehe 5.3 („Pakete public machen“) |
+| `ImagePullBackOff` mit `401`/`403` | Paket auf GHCR privat, siehe 5.3 („Public“) |
 | `ImagePullBackOff` mit `not found` | Tag gibt es nicht: CI-Lauf fehlgeschlagen oder noch nicht fertig (`gh run list`), Commit nicht gepusht |
 | `deploy.sh`: „HEAD ist nicht gepusht“ | Erst `git push`, dann baut CI das Image |
 | PVC `lego-mosaik-mosaike` bleibt `Pending` | Synology CSI prüfen: `kubectl -n synology-csi logs synology-csi-controller-0 -c csi-plugin` |
